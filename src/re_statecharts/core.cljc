@@ -44,13 +44,13 @@
    :before (fn enrich-before
              [context]
              (let [[event-id fsm-id & args] (f/get-coeffect context :event)]
-               (if (and (= event-id :transition-fsm)
+               (if (and (= event-id ::transition)
                         (= fsm-id id))
                  (f/assoc-coeffect context :event (vec (concat [event-id fsm opts] args)))
                  context)))))
 
 (f/reg-event-db
- :transition-fsm
+ ::transition
   (fn [db [_ {:keys [id epoch?] :as machine} opts fsm-event data :as args]]
     (when-let [current-state (get-state db id)]
       (let [fsm-event (u/ensure-event-map fsm-event)
@@ -73,7 +73,7 @@
 (deftype Scheduler [fsm-id ids clock]
   delayed/IScheduler
   (schedule [_ event delay]
-    (let [id (clock/setTimeout clock #(f/dispatch [:transition-fsm fsm-id event]) delay)]
+    (let [id (clock/setTimeout clock #(f/dispatch [::transition fsm-id event]) delay)]
       (swap! ids assoc event id)))
 
   (unschedule [_ event]
