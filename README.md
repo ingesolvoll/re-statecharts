@@ -91,20 +91,20 @@ If you have some other preference, for example a normalized DB implementation th
 do the following:
 
 ```clojure
-(defmulti rs/get-state UUID
+(defmethod rs/get-state UUID
   [db id]
   (db/pull db [:by-uuid id]))
 
-(defmulti rs/set-state UUID
+(defmethod rs/set-state UUID
   [db id new-state]
   (db/transact! db (assoc new-state :uuid id)))
 ```
 
-Since the built-in implementation is `:default`, any implementation that you provide that is more specific than
-that will take presedence. So if you prefer a path for example, just implement the multimethod for the vector type.
+Since the built-in implementation is `:default`, any implementation that you provide that is more specific will take 
+presedence. So if you prefer a path for example, just implement the multimethod for the vector type.
 
 ## Implementation details
-The built-in clj-statecharts re-frame integration creates a separate init and transition handler per FSM.
+clj-statecharts' built-in re-frame integration creates a separate init and transition handler per FSM.
 
 This integration goes in a different direction. There is only one event for init and one for transition. And
 the FSM instance is maintained within the scope of a re-frame global interceptor. There is one interceptor per FSM, and 
