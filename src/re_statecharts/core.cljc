@@ -92,7 +92,6 @@
 
 (f/reg-fx ::start
   (fn [fsm]
-    (js/console.log "******************** START fsm: " fsm)
     (let [machine (fsm/machine fsm)]
       (if-let [opts (meta fsm)]
         (integrate machine opts)
@@ -100,7 +99,6 @@
 
 (f/reg-fx ::stop
   (fn [id]
-    (js/console.log "******************** KILL INTERCEPTOR id: " id)
     (f/clear-global-interceptor id)))
 
 (f/reg-event-fx ::start
@@ -109,8 +107,6 @@
 
 (f/reg-event-fx ::stop
   (fn [{db :db} [_ id]]
-
-    (js/console.log "******************** stop id: " id)
     {:db    (set-state db id nil)
      ::stop id}))
 
