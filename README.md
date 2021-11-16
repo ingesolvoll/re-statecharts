@@ -47,8 +47,9 @@ With the FSM in place, we can create a UI:
                                      [:span {:style {:color :red}} "invalid"])]
                        nil        [:div])
        [:input {:type      :text
-                :on-change #(do (f/dispatch [::rs/transition :validation ::edit-started])
-                                (update-text %))
+                :on-change (fn [e] 
+                              (f/dispatch [::rs/transition :validation ::edit-started])
+                              (update-text e))
                 :on-blur   #(f/dispatch [::rs/transition :validation ::edit-ended])}]])))
 ```
 
@@ -92,7 +93,7 @@ do the following:
 ```clojure
 (defmulti rs/get-state UUID
   [db id]
-  (db/pull db [:some-query id]))
+  (db/pull db [:by-uuid id]))
 
 (defmulti rs/set-state UUID
   [db id new-state]
