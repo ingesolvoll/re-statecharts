@@ -3,7 +3,7 @@
 Provides an alternative to the built-in re-frame integration, and some added
 utilities.
 
-[![Clojars Project](https://img.shields.io/clojars/v/re-statecharts.svg)](https://clojars.org/re-statecharts)
+[![Clojars Project](https://img.shields.io/clojars/v/com.github.ingesolvoll/re-statecharts.svg)](https://clojars.org/com.github.ingesolvoll/re-statecharts)
 
 
 # Learning by example
