@@ -19,17 +19,18 @@
 
 (defn maybe-deploy [opts]
   (if-let [tag (System/getenv "CIRCLE_TAG")]
-    (println "Found tag " tag)
-    (if (re-find (re-pattern release-marker) tag)
-      (do
-        (println "Releasing to clojars...")
-        (-> opts
-            (assoc :lib lib :version (extract-version tag))
-            (bb/jar)
-            (bb/deploy)))
-      (do
-        (println "Tag is not a release tag, skipping deploy")
-        opts))
+    (do
+      (println "Found tag " tag)
+      (if (re-find (re-pattern release-marker) tag)
+        (do
+          (println "Releasing to clojars...")
+          (-> opts
+              (assoc :lib lib :version (extract-version tag))
+              (bb/jar)
+              (bb/deploy)))
+        (do
+          (println "Tag is not a release tag, skipping deploy")
+          opts)))
     (do
       (println "No tag found, skipping deploy")
       opts)))
