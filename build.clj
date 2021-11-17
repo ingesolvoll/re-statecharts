@@ -3,7 +3,7 @@
    [clojure.string :as str]
    [org.corfield.build :as bb]))
 
-(def lib 're-statecharts/re-statecharts)
+(def lib 'ingesolvoll/re-statecharts)
 (def version "0.0.1")
 
 (defn install [opts]
