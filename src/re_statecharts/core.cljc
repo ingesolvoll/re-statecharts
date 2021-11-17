@@ -37,6 +37,13 @@
                           (assoc :_epoch (new-epoch id)))]
         (set-state db id new-state)))))
 
+(f/reg-event-db
+ ::restart
+  (fn [db [_ {:keys [id] :as machine}]]
+    (let [new-state (-> (fsm/initialize machine)
+                        (assoc :_epoch (new-epoch id)))]
+      (set-state db id new-state))))
+
 (defn enrich
   [id fsm opts]
   (f/->interceptor
@@ -44,9 +51,17 @@
    :before (fn enrich-before
              [context]
              (let [[event-id fsm-id & args] (f/get-coeffect context :event)]
-               (if (and (= event-id ::transition)
-                        (= fsm-id id))
-                 (f/assoc-coeffect context :event (vec (concat [event-id fsm opts] args)))
+               (cond
+
+                 (and (= event-id ::transition)
+                      (= fsm-id id))
+                 (f/assoc-coeffect context :event (into [event-id fsm opts] args))
+
+                 (and (= event-id ::restart)
+                      (= fsm-id id))
+                 (f/assoc-coeffect context :event (into [event-id fsm] args))
+
+                 :else
                  context)))))
 
 (f/reg-event-db
