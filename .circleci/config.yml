@@ -38,14 +38,7 @@ jobs:
 workflows:
   build-deploy:
     jobs:
-      - build:
-          filters:
-            tags:
-              only: /.*/
-
       - deploy:
-          requires:
-            - build
           filters:
             tags:
               only: /Release-.*/
