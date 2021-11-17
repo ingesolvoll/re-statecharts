@@ -51,18 +51,13 @@
    :before (fn enrich-before
              [context]
              (let [[event-id fsm-id & args] (f/get-coeffect context :event)]
-               (cond
+               (cond-> context
 
-                 (and (= event-id ::transition)
-                      (= fsm-id id))
-                 (f/assoc-coeffect context :event (into [event-id fsm opts] args))
+                 (= [::transition fsm-id] [event-id id])
+                 (f/assoc-coeffect :event (into [event-id fsm opts] args))
 
-                 (and (= event-id ::restart)
-                      (= fsm-id id))
-                 (f/assoc-coeffect context :event (into [event-id fsm] args))
-
-                 :else
-                 context)))))
+                 (= [::restart fsm-id] [event-id id])
+                 (f/assoc-coeffect :event (into [event-id fsm] args)))))))
 
 (f/reg-event-db
  ::transition
