@@ -17,12 +17,11 @@ tracking the possible state the user can be in:
 (require '[re-statecharts.core :as rs])
 
 (def validation-fsm
-  {:id      :validation
-   :initial ::clean
-   :states  {::clean   {:on {::edit-started ::editing}}
-             ::editing {:on {::edit-started ::editing
-                             ::edit-ended   ::dirty}}
-             ::dirty   {:on {::edit-started ::editing}}}})
+   {:id      :validation
+    :initial ::clean
+    :states  {::clean   {:on {::edit-started ::editing}}
+              ::editing {:on {::edit-ended ::dirty}}
+              ::dirty   {:on {::edit-started ::editing}}}})
 ```
 
 The above code is an FSM as defined by clj-statecharts. It doesn't look like much, but tracking the same logic with ad
@@ -38,19 +37,19 @@ With the FSM in place, we can create a UI:
                  update-text #(reset! text (-> % .-target .-value))]
       [:div
        (rs/match-state @state
-                       ::editing  [:div "User is editing..."]
-                       ::clean    [:div "No changes made yet"]
-                       ::dirty    [:div
-                                   "Form has been modified and is "
-                                   (if (seq @text)
-                                     "valid"
-                                     [:span {:style {:color :red}} "invalid"])]
-                       nil        [:div])
+                        ::editing [:div "User is editing..."]
+                        ::clean [:div "No changes made yet"]
+                        ::dirty [:div
+                                 "Form has been modified and is "
+                                 (if (seq @text)
+                                   "valid"
+                                   [:span {:style {:color :red}} "invalid"])]
+                        nil [:div])
        [:input {:type      :text
-                :on-change (fn [e] 
-                              (f/dispatch [::rs/transition :validation ::edit-started])
-                              (update-text e))
-                :on-blur   #(f/dispatch [::rs/transition :validation ::edit-ended])}]])))
+                :on-change #(update-text %)
+                :on-focus  #(f/dispatch [::rs/transition :validation ::edit-started])
+                :on-blur   #(f/dispatch [::rs/transition :validation ::edit-ended])}]
+       [:button {:on-click #(f/dispatch [::rs/restart :validation])} "Reset input FSM"]])))
 ```
 
 There' a lot going on here, so I'll walk through them in sequence
@@ -72,6 +71,8 @@ The FSM above can also be started and stopped like this:
 (f/dispatch [::rs/start validation-fsm])
 
 (f/dispatch [::rs/stop (:id validation-fsm)])
+
+(f/dispatch [::rs/restart (:id validation-fsm)])
 ```
 
 If you need to provide clj-statecharts options, then you can add them as metadata:
