@@ -44,11 +44,11 @@
                         (assoc :_epoch (new-epoch id)))]
       (set-state db id new-state))))
 
-(defn enrich
+(defn closed-interceptor
   [id fsm opts]
   (f/->interceptor
    :id id
-   :before (fn enrich-before
+   :before (fn closed-interceptor
              [context]
              (let [[event-id fsm-id & args] (f/get-coeffect context :event)]
                (cond-> context
@@ -59,28 +59,29 @@
                  (= [::restart fsm-id] [event-id id])
                  (f/assoc-coeffect :event (into [event-id fsm] args)))))))
 
+(defn transition [db {:keys [id epoch?] :as machine} opts fsm-event data more-data]
+  (when-let [current-state (get-state db id)]
+    (let [fsm-event (u/ensure-event-map fsm-event)]
+      (if (and epoch?
+               (sc.rf/should-discard fsm-event (:_epoch current-state)))
+        (do
+          (sc.rf/log-discarded-event fsm-event)
+          db)
+        (let [next-state (fsm/transition machine
+                                         current-state
+                                         (cond-> (assoc fsm-event :data data)
+                                           (some? more-data)
+                                           (assoc :more-data more-data))
+                                         opts)]
+          ;; TODO Debug logging for state changes
+          (set-state db id next-state))))))
+
 (f/reg-event-db
  ::transition
-  (fn [db [_ {:keys [id epoch?] :as machine} opts fsm-event data :as args]]
-    (when-let [current-state (get-state db id)]
-      (let [fsm-event (u/ensure-event-map fsm-event)
-            more-data (when (> (count args) 4)
-                        (subvec args 3))]
-        (if (and epoch?
-                 (sc.rf/should-discard fsm-event (:_epoch current-state)))
-          (do
-            (sc.rf/log-discarded-event fsm-event)
-            db)
-          (let [next-state (fsm/transition machine
-                                           current-state
-                                           (cond-> (assoc fsm-event :data data)
-                                             (some? more-data)
-                                             (assoc :more-data more-data))
-                                           opts)]
-            ;; TODO Debug logging for state changes
-            (set-state db id next-state)))))))
+  (fn [db [_ machine opts fsm-event data & more-data]]
+    (transition db machine opts fsm-event data more-data)))
 
-(deftype Scheduler [fsm-id ids clock]
+(deftype ClosedScheduler [fsm-id ids clock]
   delayed/IScheduler
   (schedule [_ event delay]
     (let [id (clock/setTimeout clock #(f/dispatch [::transition fsm-id event]) delay)]
@@ -96,9 +97,9 @@
    (integrate machine sc.rf/default-opts))
   ([{:keys [id] :as machine} {:keys [clock] :as opts}]
    (let [clock   (or clock (clock/wall-clock))
-         machine (assoc machine :scheduler (Scheduler. id (atom {}) clock))]
+         machine (assoc machine :scheduler (ClosedScheduler. id (atom {}) clock))]
      (f/dispatch [::init machine])
-     (f/reg-global-interceptor (enrich id machine (:transition-opts opts))))))
+     (f/reg-global-interceptor (closed-interceptor id machine (:transition-opts opts))))))
 
 (f/reg-fx ::start
   (fn [fsm]
