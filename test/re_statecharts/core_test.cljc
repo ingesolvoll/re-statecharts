@@ -32,9 +32,11 @@
     (rf-test/run-test-sync
      (let [state (f/subscribe [::rs/state :validation-open])]
        (f/reg-event-fx ::edit-started (constantly nil))
+       (f/reg-event-fx ::just-some-noise (constantly nil))
        (f/dispatch [::rs/start global-validation-fsm])
        (is (= ::clean @state))
        (f/dispatch [::edit-started :validation-open])
+       (f/dispatch [::just-some-noise])
        (is (= ::editing @state))
        (f/dispatch [::rs/stop :validation-open])
        (is (nil? @state))))))

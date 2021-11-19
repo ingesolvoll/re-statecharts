@@ -31,7 +31,7 @@
 
 (f/reg-event-fx
  ::init
-  (fn [db [_ {:keys [id] :as machine} initialize-args]]
+  (fn [{db :db} [_ {:keys [id] :as machine} initialize-args]]
     (when-not (get-state db id)
       (let [new-state (-> (fsm/initialize machine initialize-args)
                           (assoc :_epoch (new-epoch id)))]
@@ -40,9 +40,8 @@
 (f/reg-event-db
  ::restart
   (fn [db [_ {:keys [id] :as machine}]]
-    (let [new-state (-> (fsm/initialize machine)
-                        (assoc :_epoch (new-epoch id)))]
-      (set-state db id new-state))))
+    (set-state db id (-> (fsm/initialize machine)
+                         (assoc :_epoch (new-epoch id))))))
 
 (defn transition [db {:keys [id epoch?] :as machine} opts fsm-event data more-data]
   (when-let [current-state (get-state db id)]
@@ -63,30 +62,30 @@
 
 (defn open-interceptor
   [id fsm transition-opts]
-  (let [transition-opts (assoc transition-opts :ignore-uknown-events? true)]
-    (f/->interceptor
-     :id id
+  (f/->interceptor
+   :id id
 
-     :before (fn intercept-init
-               [context]
-               (let [[event-id fsm-id data & more-data] (f/get-coeffect context :event)]
-                 (cond-> context
-                   (= [::restart fsm-id] [event-id id]) (f/assoc-coeffect :event (into [event-id fsm] (concat data more-data))))))
+   :before (fn intercept-init
+             [context]
+             (let [[event-id fsm-id data & more-data] (f/get-coeffect context :event)]
+               (cond-> context
+                 (= [::restart fsm-id] [event-id id]) (f/assoc-coeffect :event (into [event-id fsm] (concat data more-data))))))
 
-     :after (fn open-interceptor
-              [context]
-              (let [[event-id fsm-id data & more-data] (f/get-coeffect context :event)
-                    db (or (f/get-effect context :db)
-                           (f/get-coeffect context :db))]
-                (cond-> context
-                  (and (= id fsm-id)
-                       (not (#{::start ::stop ::init ::restart} event-id)))
-                  (f/assoc-effect :db (transition db fsm transition-opts event-id data more-data))))))))
+   :after (fn open-interceptor
+            [context]
+            (let [[event-id fsm-id data & more-data] (f/get-coeffect context :event)
+                  db (or (f/get-effect context :db)
+                         (f/get-coeffect context :db))]
+              (cond-> context
+                (and (= id fsm-id)
+                     (not (#{::start ::stop ::init ::restart} event-id)))
+                (f/assoc-effect :db (transition db fsm transition-opts event-id data more-data)))))))
 
 (defn closed-interceptor
   [id fsm transition-opts]
   (f/->interceptor
    :id id
+
    :before (fn closed-interceptor
              [context]
              (let [[event-id fsm-id & args] (f/get-coeffect context :event)]
@@ -98,10 +97,11 @@
                  (= [::restart fsm-id] [event-id id])
                  (f/assoc-coeffect :event (into [event-id fsm] args)))))))
 
-(f/reg-event-db
+(f/reg-event-fx
  ::transition
-  (fn [db [_ machine opts fsm-event data & more-data]]
-    (transition db machine opts fsm-event data more-data)))
+  (fn [{db :db} [_ machine opts fsm-event data & more-data]]
+    (when-let [new-db (transition db machine opts fsm-event data more-data)]
+      {:db new-db})))
 
 (deftype Scheduler [fsm-id ids clock open?]
   delayed/IScheduler
@@ -124,8 +124,7 @@
      :keys  [clock] :as opts}]
    (let [clock           (or clock (clock/wall-clock))
          machine         (assoc machine :scheduler (Scheduler. id (atom {}) clock open?))
-         transition-opts (cond-> (:transition-opts opts)
-                           open? (assoc :ignore-uknown-events? true))]
+         transition-opts (:transition-opts opts)]
      (f/dispatch [::init machine])
      (f/reg-global-interceptor (if open?
                                  (open-interceptor id machine transition-opts)
