@@ -40,3 +40,16 @@
        (is (= ::editing @state))
        (f/dispatch [::rs/stop :validation-open])
        (is (nil? @state))))))
+
+(deftest unexpected-events
+  (testing "Unexpected events throw exceptions"
+    (rf-test/run-test-sync
+     (f/dispatch [::rs/start validation-fsm])
+     (is (thrown? clojure.lang.ExceptionInfo
+                  (f/dispatch [::rs/transition :validation ::not-the-one-we-want])))))
+
+  (testing "Can ignore unexpected event"
+    (rf-test/run-test-sync
+     (f/dispatch [::rs/start (with-meta validation-fsm {:transition-opts {:ignore-unknown-event? true}})])
+     (f/dispatch [::rs/transition :validation ::not-the-one-we-want])
+     (is (= ::clean @(f/subscribe [::rs/state :validation]))))))
