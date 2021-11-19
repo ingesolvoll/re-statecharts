@@ -40,8 +40,5 @@ workflows:
     jobs:
       - test
       - deploy:
-          filters:
-            tags:
-              only: /Release-.*/
           context:
             - CLOJARS_DEPLOY
