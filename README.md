@@ -4,6 +4,8 @@ A richer re-frame wrapper for [https://github.com/lucywang000/clj-statecharts](c
 
 [![Clojars Project](https://img.shields.io/clojars/v/com.github.ingesolvoll/re-statecharts.svg)](https://clojars.org/com.github.ingesolvoll/re-statecharts)
 
+[![CircleCI](https://circleci.com/gh/ingesolvoll/re-statecharts/tree/main.svg?style=svg)](https://circleci.com/gh/ingesolvoll/re-statecharts/tree/main)
+
 # Rationale
 While the [default re-frame integration](https://lucywang000.github.io/clj-statecharts/docs/integration/re-frame/) is perfectly
 fine for many cases, there are also several other ways to do it using re-frame. This integration tries to minimize
