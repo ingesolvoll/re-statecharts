@@ -117,9 +117,10 @@
 (defn integrate
   ([machine]
    (integrate machine sc.rf/default-opts))
-  ([{:keys [id] :as machine} {:keys [clock] :as opts}]
+  ([{:keys [id] :as machine}
+    {::keys [open?]
+     :keys  [clock] :as opts}]
    (let [clock           (or clock (clock/wall-clock))
-         open?           (:open? opts)
          machine         (assoc machine :scheduler (Scheduler. id (atom {}) clock open?))
          transition-opts (cond-> (:transition-opts opts)
                            open? (assoc :ignore-uknown-events? true))]

@@ -84,7 +84,7 @@ Here's an example:
 
 ```clojure
 (def open-validation-fsm
-  ^{:open? true}
+  ^{::rs/open? true}
   {:id      :validation-open
    :initial ::clean
    :states  {::clean   {:on {::edit-started ::editing}}
