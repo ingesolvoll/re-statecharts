@@ -1,12 +1,12 @@
 (ns re-statecharts.core
   (:require
+   [clojure.spec.alpha :as s]
    [re-frame.core :as f]
    [statecharts.clock :as clock]
    [statecharts.core :as fsm]
    [statecharts.delayed :as delayed]
    [statecharts.integrations.re-frame :as sc.rf]
-   [statecharts.utils :as u])
-  (:require-macros re-statecharts.core))
+   [statecharts.utils :as u]))
 
 (defmulti get-state (fn [db id]
                       (type id)))
@@ -29,13 +29,13 @@
 (defn new-epoch [id]
   (get (vswap! epochs update id sc.rf/safe-inc) id))
 
-(f/reg-event-db
+(f/reg-event-fx
  ::init
   (fn [db [_ {:keys [id] :as machine} initialize-args]]
     (when-not (get-state db id)
       (let [new-state (-> (fsm/initialize machine initialize-args)
                           (assoc :_epoch (new-epoch id)))]
-        (set-state db id new-state)))))
+        {:db (set-state db id new-state)}))))
 
 (f/reg-event-db
  ::restart
@@ -79,7 +79,9 @@
                     db (or (f/get-effect context :db)
                            (f/get-coeffect context :db))]
                 (cond-> context
-                  (= id fsm-id) (f/assoc-effect :db (transition db fsm transition-opts event-id data more-data))))))))
+                  (and (= id fsm-id)
+                       (not (#{::start ::stop ::init ::restart} event-id)))
+                  (f/assoc-effect :db (transition db fsm transition-opts event-id data more-data))))))))
 
 (defn closed-interceptor
   [id fsm transition-opts]
@@ -174,3 +176,20 @@
       (throw (ex-info "Could not find a component to match state."
                       {:state state
                        :pairs pairs})))))
+
+(s/def ::binding (s/and vector?
+                        (s/cat :subscription-symbol symbol? :fsm any?)))
+
+(defmacro with-fsm [binding & body]
+  (let [parsed (s/conform ::binding binding)]
+    (when (= ::s/invalid parsed)
+      (throw (ex-info "with-fsm accepts exactly one binding pair, the subscription symbol and the FSM declaration."
+                      (s/explain-data ::binding binding))))
+    (let [{:keys [:subscription-symbol :fsm]} parsed]
+      `(reagent.core/with-let [~subscription-symbol (f/subscribe [::state (:id ~fsm)])
+                               _# (f/dispatch [::start ~fsm])]
+         ~@body
+         ~(list
+           'finally
+           ;; If we queue this event, it will break hot reloading as the stop will execute after the next start.
+           `(re-frame.core/dispatch-sync [::stop (:id ~fsm)]))))))
