@@ -44,21 +44,6 @@
                         (assoc :_epoch (new-epoch id)))]
       (set-state db id new-state))))
 
-(defn closed-interceptor
-  [id fsm opts]
-  (f/->interceptor
-   :id id
-   :before (fn closed-interceptor
-             [context]
-             (let [[event-id fsm-id & args] (f/get-coeffect context :event)]
-               (cond-> context
-
-                 (= [::transition fsm-id] [event-id id])
-                 (f/assoc-coeffect :event (into [event-id fsm opts] args))
-
-                 (= [::restart fsm-id] [event-id id])
-                 (f/assoc-coeffect :event (into [event-id fsm] args)))))))
-
 (defn transition [db {:keys [id epoch?] :as machine} opts fsm-event data more-data]
   (when-let [current-state (get-state db id)]
     (let [fsm-event (u/ensure-event-map fsm-event)]
@@ -76,15 +61,52 @@
           ;; TODO Debug logging for state changes
           (set-state db id next-state))))))
 
+(defn open-interceptor
+  [id fsm transition-opts]
+  (let [transition-opts (assoc transition-opts :ignore-uknown-events? true)]
+    (f/->interceptor
+     :id id
+
+     :before (fn intercept-init
+               [context]
+               (let [[event-id fsm-id data & more-data] (f/get-coeffect context :event)]
+                 (cond-> context
+                   (= [::restart fsm-id] [event-id id]) (f/assoc-coeffect :event (into [event-id fsm] (concat data more-data))))))
+
+     :after (fn open-interceptor
+              [context]
+              (let [[event-id fsm-id data & more-data] (f/get-coeffect context :event)
+                    db (or (f/get-effect context :db)
+                           (f/get-coeffect context :db))]
+                (cond-> context
+                  (= id fsm-id) (f/assoc-effect :db (transition db fsm transition-opts event-id data more-data))))))))
+
+(defn closed-interceptor
+  [id fsm transition-opts]
+  (f/->interceptor
+   :id id
+   :before (fn closed-interceptor
+             [context]
+             (let [[event-id fsm-id & args] (f/get-coeffect context :event)]
+               (cond-> context
+
+                 (= [::transition fsm-id] [event-id id])
+                 (f/assoc-coeffect :event (into [event-id fsm transition-opts] args))
+
+                 (= [::restart fsm-id] [event-id id])
+                 (f/assoc-coeffect :event (into [event-id fsm] args)))))))
+
 (f/reg-event-db
  ::transition
   (fn [db [_ machine opts fsm-event data & more-data]]
     (transition db machine opts fsm-event data more-data)))
 
-(deftype ClosedScheduler [fsm-id ids clock]
+(deftype Scheduler [fsm-id ids clock open?]
   delayed/IScheduler
   (schedule [_ event delay]
-    (let [id (clock/setTimeout clock #(f/dispatch [::transition fsm-id event]) delay)]
+    (let [id (clock/setTimeout clock #(f/dispatch (if open?
+                                                    event
+                                                    [::transition fsm-id event])) delay)]
       (swap! ids assoc event id)))
 
   (unschedule [_ event]
@@ -96,10 +118,15 @@
   ([machine]
    (integrate machine sc.rf/default-opts))
   ([{:keys [id] :as machine} {:keys [clock] :as opts}]
-   (let [clock   (or clock (clock/wall-clock))
-         machine (assoc machine :scheduler (ClosedScheduler. id (atom {}) clock))]
+   (let [clock           (or clock (clock/wall-clock))
+         open?           (:open? opts)
+         machine         (assoc machine :scheduler (Scheduler. id (atom {}) clock open?))
+         transition-opts (cond-> (:transition-opts opts)
+                           open? (assoc :ignore-uknown-events? true))]
      (f/dispatch [::init machine])
-     (f/reg-global-interceptor (closed-interceptor id machine (:transition-opts opts))))))
+     (f/reg-global-interceptor (if open?
+                                 (open-interceptor id machine transition-opts)
+                                 (closed-interceptor id machine transition-opts))))))
 
 (f/reg-fx ::start
   (fn [fsm]
