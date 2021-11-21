@@ -1,6 +1,6 @@
 # Statecharts for re-frame
 
-A richer re-frame wrapper for [https://github.com/lucywang000/clj-statecharts](clj-statecharts)
+A richer re-frame wrapper for [clj-statecharts](https://github.com/lucywang000/clj-statecharts)
 
 [![Clojars Project](https://img.shields.io/clojars/v/com.github.ingesolvoll/re-statecharts.svg)](https://clojars.org/com.github.ingesolvoll/re-statecharts)
 
